@@ -142,6 +142,9 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopInit() {
+    turret.getEncoder().setPosition(0);
+    turret.setOpenLoopRampRate(.8);
+    
     leftIntake.set(true);
     rightIntake.set(true);
   }
