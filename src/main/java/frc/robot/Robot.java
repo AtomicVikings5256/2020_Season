@@ -54,9 +54,14 @@ public class Robot extends TimedRobot {
 
   //NetworkTable
   private NetworkTable table;
-  private NetworkTableEntry tx;
-  private NetworkTableEntry ty;
-  private NetworkTableEntry ta;
+  private double tx;
+  private double tv;
+
+  //Turret sTUFF
+  private double kp;
+  private double min_command;
+  private double turret_adjust;
+  double state;
 
   //Sensors
   private DigitalInput bottomCell, middleCell, topCell;
@@ -91,8 +96,8 @@ public class Robot extends TimedRobot {
     //colorWheel = new VictorSPX(18);
 
     //Drive
-    frontLeft    = new WPI_TalonFX(5);
-    frontRight   = new WPI_TalonFX(6);
+    frontLeft = new WPI_TalonFX(5);
+    frontRight = new WPI_TalonFX(6);
     rearLeft = new WPI_TalonFX(7);
     rearRight = new WPI_TalonFX(8);
     leftDrivey  = new SpeedControllerGroup(frontLeft, rearLeft);
@@ -101,9 +106,14 @@ public class Robot extends TimedRobot {
 
     //NetworkTable stuffs
     table = NetworkTableInstance.getDefault().getTable("limelight");
-    tx = table.getEntry("tx");
-    ty = table.getEntry("ty");
-    ta = table.getEntry("ta");
+    tx = table.getEntry("tx").getDouble(0.0);
+    tv = table.getEntry("tv").getDouble(0.0);
+
+    //Turret sTUFFs
+    kp = -0.1;
+    min_command = 0.05;
+    turret_adjust = 0.0;
+    state = 0;
 
     //Sensors
     bottomCell = new DigitalInput(0);
@@ -119,11 +129,11 @@ public class Robot extends TimedRobot {
   
   @Override
   public void robotPeriodic() {
-    SmartDashboard.putBoolean("Top", topCell.get());
-    SmartDashboard.putBoolean("Mid", middleCell.get());
-    SmartDashboard.putBoolean("Bot", bottomCell.get());
+    SmartDashboard.putBoolean("Top ", topCell.get());
+    SmartDashboard.putBoolean("Mid ", middleCell.get());
+    SmartDashboard.putBoolean("Bot ", bottomCell.get());
 
-    SmartDashboard.putNumber("Velocity", shooterSensor.getIntegratedSensorVelocity());
+    SmartDashboard.putNumber("Velocity ", shooterSensor.getIntegratedSensorVelocity());
   
   }
 
@@ -134,24 +144,20 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    //read values periodically
-    //double x = tx.getDouble(0.0);
-    //double y = ty.getDouble(0.0);
-    //double area = ta.getDouble(0.0);
+    
   }
 
   @Override
   public void teleopInit() {
     turret.getEncoder().setPosition(0);
     turret.setOpenLoopRampRate(.8);
-    
     leftIntake.set(true);
     rightIntake.set(true);
   }
 
   @Override
   public void teleopPeriodic() {
-    //Drive
+      //Drive
       drive.arcadeDrive(driver.getRawAxis(1), driver.getRawAxis(4));
 
       //Shooter
@@ -170,7 +176,7 @@ public class Robot extends TimedRobot {
         limelight();
       }
 
-      SmartDashboard.putBoolean("Auto Search", search);
+      SmartDashboard.putBoolean("Auto Search ", search);
 
       //Preroller
       if (driver.getRawButton(6)) {
@@ -193,7 +199,7 @@ public class Robot extends TimedRobot {
         shifters.set(false);
       }
 
-    //Mechanics
+      //Mechanics
       if (mechanic.getPOV() == 0) {
         vertConvey.set(1);
       } else if (mechanic.getPOV() == 4) {
@@ -231,28 +237,44 @@ public class Robot extends TimedRobot {
   }
 
   public void limelight() {
-    double tx = table.getEntry("tx").getDouble(0.0); //x axis offset
-    double tv = table.getEntry("tv").getDouble(0.0); //whether or not we see the goal
-    double kp = -0.1;
-    double min_command     = 0.05;
-    double heading_error   = -tx;                    //x axis fixer
-    double turret_adjust   = 0.0;                    //used to adjust the turret
-    
-    if (tx > 0.0) {
-      turret_adjust = kp*heading_error - min_command;
-    } else if (tx < 0.0) {
-      turret_adjust = kp*heading_error + min_command;
-    }
+    tx = table.getEntry("tx").getDouble(0.0);
+    tv = table.getEntry("tv").getDouble(0.0);
+    turret_adjust = 0.0;
+    double heading_error = -tx;
+    double Eposition = turret.getEncoder().getPosition();
+    boolean timeToSearch = false;
+    boolean oneTime = true;
+    boolean twoTime = true;
+    time.reset();
+    time.start();
+    if (tv == 1) {
+      oneTime = true;
+      twoTime = true;
+      timeToSearch = false;
+      SmartDashboard.putBoolean("Status of target", true);
+      if (tx > 1.0) {
+        turret_adjust = kp*heading_error + min_command;
+      } else if (tx < 1.0) {
+        turret_adjust = kp*heading_error - min_command;
+      }
+    } else if (tv == 0) {
+      if (oneTime) {
+        oneTime = false;
+        state = time.get();
+      } else if (twoTime && time.get() > state + 5) {
+        twoTime = false;
+        timeToSearch = true;
+      }
 
+      if (timeToSearch) {
+        if (Eposition == 5) {
+          turret_adjust = -0.1;
+        } else if (Eposition == -5) {
+          turret_adjust = 0.1;
+        }
+      }
+    }
     turret.set(turret_adjust);
-
-    if (tv == 0.0) {
-      turret_adjust = 0.3;
-      turret.set(turret_adjust);
-    } else {
-      heading_error = tx;
-      turret_adjust = kp * heading_error;
-      turret.set(turret_adjust);
-    }
+    SmartDashboard.putNumber("Turret position", Eposition);
   }
 }
