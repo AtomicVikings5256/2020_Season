@@ -56,6 +56,7 @@ public class Robot extends TimedRobot {
   private NetworkTable table;
   private double tx;
   private double tv;
+  private double ty;
 
   //Turret sTUFF
   private double kp;
@@ -106,8 +107,10 @@ public class Robot extends TimedRobot {
 
     //NetworkTable stuffs
     table = NetworkTableInstance.getDefault().getTable("limelight");
+    table.getEntry("ledMode").forceSetNumber(1);
     tx = table.getEntry("tx").getDouble(0.0);
     tv = table.getEntry("tv").getDouble(0.0);
+    ty = table.getEntry("ty").getDouble(0.0);
 
     //Turret sTUFFs
     kp = -0.1;
@@ -133,8 +136,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("Mid ", middleCell.get());
     SmartDashboard.putBoolean("Bot ", bottomCell.get());
 
-    SmartDashboard.putNumber("Velocity ", shooterSensor.getIntegratedSensorVelocity());
-  
+    SmartDashboard.putNumber("Velocity ", shooterSensor.getIntegratedSensorVelocity());  
   }
 
   @Override
@@ -251,13 +253,14 @@ public class Robot extends TimedRobot {
       oneTime = true;
       twoTime = true;
       timeToSearch = false;
-      SmartDashboard.putBoolean("Status of target", true);
+      SmartDashboard.putBoolean("Status of target ", true);
       if (tx > 1.0) {
         turret_adjust = kp*heading_error + min_command;
       } else if (tx < 1.0) {
         turret_adjust = kp*heading_error - min_command;
       }
     } else if (tv == 0) {
+      SmartDashboard.putBoolean("Status of target ", false);
       if (oneTime) {
         oneTime = false;
         state = time.get();
@@ -265,7 +268,6 @@ public class Robot extends TimedRobot {
         twoTime = false;
         timeToSearch = true;
       }
-
       if (timeToSearch) {
         if (Eposition == 5) {
           turret_adjust = -0.1;
@@ -275,6 +277,6 @@ public class Robot extends TimedRobot {
       }
     }
     turret.set(turret_adjust);
-    SmartDashboard.putNumber("Turret position", Eposition);
+    SmartDashboard.putNumber("Turret position ", Eposition);
   }
 }
