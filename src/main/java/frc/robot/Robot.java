@@ -1,19 +1,16 @@
 package frc.robot;
+
 import edu.wpi.first.wpilibj.TimedRobot;
 
 //Drive
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 
-//Auto
-import edu.wpi.first.wpilibj.Timer;
-
 //Output
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-
 //Input
 import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.I2C;
 import edu.wpi.first.wpilibj.Joystick;
-
 //NetworkTable
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
@@ -27,30 +24,44 @@ import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.TalonFXSensorCollection;
 import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
+import com.kauailabs.navx.frc.AHRS;
 import com.revrobotics.CANEncoder;
 import edu.wpi.first.wpilibj.DigitalInput;
 
 //Pnuematics 
 import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.Compressor;
-
+import edu.wpi.first.wpilibj.CounterBase;
+//Auto Things
+import edu.wpi.first.wpilibj.kinematics.DifferentialDriveKinematics;
+import edu.wpi.first.wpilibj.kinematics.DifferentialDriveOdometry;
+import edu.wpi.first.wpilibj.kinematics.DifferentialDriveWheelSpeeds;
+import edu.wpi.first.wpilibj.geometry.Pose2d;
+import edu.wpi.first.wpilibj.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.util.Units;
+import edu.wpi.first.wpilibj.Timer;
 
 public class Robot extends TimedRobot {
   //Variables
-  boolean search = false;
+  private boolean search;
 
   //Motor Controllers
   private WPI_TalonFX frontLeft, frontRight, rearLeft, rearRight, leftShooter, rightShooter;
   private CANSparkMax turret, preroller, vertConvey, indexer, intake;
-  private TalonFXSensorCollection shooterSensor;
+  private TalonFXSensorCollection shooterSensor, leftSensor, rightSensor;
   private DifferentialDrive drive;
   private SpeedControllerGroup leftDrivey, rightDrivey, shooters;
   private VictorSPX funnel;
-  //private VictorSPX colorWheel;
   
   //Misc
   private Timer time;
   private Joystick driver, mechanic;
+
+  //Auto Things
+  private DifferentialDriveKinematics kinematics;
+  private DifferentialDriveOdometry odometry;
+  private AHRS gyro;
+  private Pose2d pose;
 
   //NetworkTable
   private NetworkTable table;
@@ -62,7 +73,7 @@ public class Robot extends TimedRobot {
   private double kp;
   private double min_command;
   private double turret_adjust;
-  double state;
+  private double state;
 
   //Sensors
   private DigitalInput bottomCell, middleCell, topCell;
@@ -77,12 +88,15 @@ public class Robot extends TimedRobot {
     time     = new Timer();
     driver = new Joystick(0);
     mechanic = new Joystick(1);
+    gyro = new AHRS(I2C.Port.kMXP);
+    kinematics = new DifferentialDriveKinematics(Units.inchesToMeters(28.5));
+    odometry = new DifferentialDriveOdometry(getHeading());
 
-    //Mechanisms
     //Shooters
     leftShooter = new WPI_TalonFX(9);
     rightShooter = new WPI_TalonFX(10);
     leftShooter.setInverted(true);
+    rightShooter.setInverted(false);
     shooters = new SpeedControllerGroup(leftShooter, rightShooter);
     
     //Intake and Conveyors
@@ -92,9 +106,6 @@ public class Robot extends TimedRobot {
     vertConvey = new CANSparkMax(12, MotorType.kBrushless);
     intake = new CANSparkMax(15, MotorType.kBrushless);
     funnel = new VictorSPX(16);
-
-    //color wheel :|
-    //colorWheel = new VictorSPX(18);
 
     //Drive
     frontLeft = new WPI_TalonFX(5);
@@ -123,6 +134,10 @@ public class Robot extends TimedRobot {
     middleCell = new DigitalInput(1);
     topCell = new DigitalInput(2);
 
+    //Encoders
+    leftSensor = new TalonFXSensorCollection(frontLeft);
+    rightSensor = new TalonFXSensorCollection(frontRight);
+
     //pneumatics
     shifters = new Solenoid(0);
     leftIntake = new Solenoid(1);
@@ -135,8 +150,12 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("Top ", topCell.get());
     SmartDashboard.putBoolean("Mid ", middleCell.get());
     SmartDashboard.putBoolean("Bot ", bottomCell.get());
-
-    SmartDashboard.putNumber("Velocity ", shooterSensor.getIntegratedSensorVelocity());  
+    SmartDashboard.putNumber("Velocity ", shooterSensor.getIntegratedSensorVelocity());
+    //Update the odometry in the periodic block
+    pose = odometry.update(
+      getHeading(), 
+      leftSensor.getIntegratedSensorVelocity() / 7.29 * 2 * Math.PI  * Units.inchesToMeters(3.5) / 60, 
+      rightSensor.getIntegratedSensorVelocity() / 7.29 * 2 * Math.PI  * Units.inchesToMeters(3.5) / 60);
   }
 
   @Override
@@ -146,7 +165,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    
+     
   }
 
   @Override
@@ -278,5 +297,9 @@ public class Robot extends TimedRobot {
     }
     turret.set(turret_adjust);
     SmartDashboard.putNumber("Turret position ", Eposition);
+  }
+  
+  public Rotation2d getHeading() {
+    return Rotation2d.fromDegrees(-gyro.getAngle());
   }
 }
