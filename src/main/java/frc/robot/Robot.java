@@ -47,7 +47,7 @@ public class Robot extends TimedRobot {
 
   //Motor Controllers
   private WPI_TalonFX frontLeft, frontRight, rearLeft, rearRight, leftShooter, rightShooter;
-  private CANSparkMax turret, preroller, vertConvey, indexer, intake;
+  private CANSparkMax turret, preroller, vertConvey, indexer, intake, climber;
   private TalonFXSensorCollection shooterSensor, leftSensor, rightSensor;
   private DifferentialDrive drive;
   private SpeedControllerGroup leftDrivey, rightDrivey, shooters;
@@ -79,9 +79,9 @@ public class Robot extends TimedRobot {
   private DigitalInput bottomCell, middleCell, topCell;
 
   //Solenoids
-  private Solenoid shifters, leftIntake, rightIntake;
+  private Solenoid shifter1, shifter2, leftIntake, rightIntake;
   private Compressor compressor;
-
+ 
   @Override
   public void robotInit() {
     //Auto Stuff
@@ -106,6 +106,7 @@ public class Robot extends TimedRobot {
     vertConvey = new CANSparkMax(12, MotorType.kBrushless);
     intake = new CANSparkMax(15, MotorType.kBrushless);
     funnel = new VictorSPX(16);
+    climber = new CANSparkMax(17, MotorType.kBrushless);
 
     //Drive
     frontLeft = new WPI_TalonFX(5);
@@ -128,6 +129,7 @@ public class Robot extends TimedRobot {
     min_command = 0.05;
     turret_adjust = 0.0;
     state = 0;
+    search =  true;
 
     //Sensors
     bottomCell = new DigitalInput(0);
@@ -139,9 +141,10 @@ public class Robot extends TimedRobot {
     rightSensor = new TalonFXSensorCollection(frontRight);
 
     //pneumatics
-    shifters = new Solenoid(0);
-    leftIntake = new Solenoid(1);
-    rightIntake = new Solenoid(2);
+    shifter1 = new Solenoid(0);
+    shifter2 = new Solenoid(1);
+    leftIntake = new Solenoid(2);
+    rightIntake = new Solenoid(3);
     compressor = new Compressor();
   }
   
@@ -156,6 +159,7 @@ public class Robot extends TimedRobot {
       getHeading(), 
       leftSensor.getIntegratedSensorVelocity() / 7.29 * 2 * Math.PI  * Units.inchesToMeters(3.5) / 60, 
       rightSensor.getIntegratedSensorVelocity() / 7.29 * 2 * Math.PI  * Units.inchesToMeters(3.5) / 60);
+    
   }
 
   @Override
@@ -178,78 +182,97 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
-      //Drive
-      drive.arcadeDrive(driver.getRawAxis(1), driver.getRawAxis(4));
+    //Drive
+    drive.arcadeDrive(driver.getRawAxis(1), driver.getRawAxis(4));
 
-      //Shooter
-      if (driver.getRawButton(5)) {
-        shooters.set(1);
-      } else {
-        shooters.set(0.0);
+    //Shooter
+    if (driver.getRawButton(7)) {
+      shooters.set(1);
+    } else {
+      shooters.set(0.0);
+    }
+
+    //Shifting
+    if (driver.getRawButton(2)) {
+      shifter1.set(true);
+      shifter2.set(true);
+    } else if (driver.getRawButton(3)) {
+      shifter1.set(false);
+      shifter2.set(false);
+    }
+
+
+    //Turret
+    if (driver.getRawButtonPressed(9)) {
+      search = !search;
+    } 
+
+    if (search) {
+      limelight();
+    }
+
+    if (!search) {
+      if (mechanic.getRawAxis(2) == 1) {
+        turret.set(-1);
+      } else if (mechanic.getRawAxis(2) == -1) {
+        turret.set(1);
       }
+    }
 
-      //Turret
-      if (driver.getRawButtonPressed(1)) {
-        search = !search;
-      } 
+    SmartDashboard.putBoolean("Auto Search ", search);
 
-      if (search) {
-        limelight();
-      }
-
-      SmartDashboard.putBoolean("Auto Search ", search);
-
-      //Preroller
-      if (driver.getRawButton(6)) {
-        preroller.set(1);
-      } else {
-        preroller.set(0);
-      }
+    //Preroller
+    if (driver.getRawButton(8)) {
+      preroller.set(1);
+    } else {
+      preroller.set(0);
+    }
       
-      //Intake
-      if (driver.getRawAxis(2) > .6) {
-        intake.set(1);
-      } else {
-        intake.set(0);
-      }
+    //Intake
+    if (driver.getRawButton(5)) {
+      intake.set(-1);
+    } else if (driver.getRawButton(6)) {
+      intake.set(1);
+    } else {
+      intake.set(0);
+    }
 
-      //Shifters
-      if (driver.getPOV() == 0) {
-        shifters.set(true);
-      } else if (driver.getPOV() == 4) {
-        shifters.set(false);
-      }
+    //Mechanics
+    if (mechanic.getPOV() == 0) {
+      vertConvey.set(1);
+    } else if (mechanic.getPOV() == 4) {
+      vertConvey.set(-1);
+    } else {
+      vertConvey.set(0);
+    }
 
-      //Mechanics
-      if (mechanic.getPOV() == 0) {
-        vertConvey.set(1);
-      } else if (mechanic.getPOV() == 4) {
-        vertConvey.set(-1);
-      } else {
-        vertConvey.set(0);
-      }
+    if (mechanic.getRawButton(3)) {
+      indexer.set(-1);
+    } else if (mechanic.getRawButton(1)) {
+      indexer.set(1);
+    } else {
+      indexer.set(0);
+    }
 
-      if (mechanic.getPOV() == 2) {
-        indexer.set(1);
-      } else if (mechanic.getPOV() == 6) {
-        indexer.set(-1);
-      } else {
-        indexer.set(0);
-      }
-
-      if (mechanic.getRawButton(1) == true) {
-        funnel.set(ControlMode.PercentOutput, 100);
-      } else {
-        funnel.set(ControlMode.PercentOutput, 0);
-      }
+    if (mechanic.getRawButton(2)) {
+      funnel.set(ControlMode.PercentOutput, 100);
+    } else {
+      funnel.set(ControlMode.PercentOutput, 0);
+    }
       
-      if(mechanic.getRawButton(3) == true) {
-        leftIntake.set(true);
-        rightIntake.set(true);
-      } else if (mechanic.getRawButton(4) == true) {
-        leftIntake.set(false);
-        rightIntake.set(false);
-      }
+    if(mechanic.getRawButton(5)) {
+      leftIntake.set(true);
+      rightIntake.set(true);
+    } else if (mechanic.getRawButton(6)) {
+      leftIntake.set(false);
+      rightIntake.set(false);
+    }
+
+    if(mechanic.getRawButton(4)) {
+      climber.set(0.5);
+    } else {
+      climber.set(0.0);
+    }
   }
 
   @Override
@@ -302,4 +325,6 @@ public class Robot extends TimedRobot {
   public Rotation2d getHeading() {
     return Rotation2d.fromDegrees(-gyro.getAngle());
   }
+
+
 }
